@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 收币地址数据 -->
+<mapper namespace="com.blockchain.platform.mapper.ChequeMapper">
+
+    <!-- 分页数据 -->
+    <select id="query" resultType="ChequeVO" parameterType="PageDTO">
+        SELECT
+          tcc.icon,tuc.address,tuc.id,tuc.remark,tuc.token
+        FROM t_user_cheque tuc, t_coin_config tcc
+        WHERE tuc.token = tcc.symbol AND tuc.user_id = #{userId}
+            <if test="symbol != null and symbol != ''">
+                AND tuc.token = #{symbol}
+            </if>
+            AND tuc.state = 1
+        ORDER BY tuc.id DESC
+    </select>
+
+    <!-- 查询数据 -->
+    <select id="findByCondition" resultType="UserChequeEntity" parameterType="BaseDTO">
+        SELECT * FROM t_user_cheque WHERE id > 0
+        <if test="id != null and id != ''">
+            AND id = #{id}
+        </if>
+        <if test="userId != null and userId != ''">
+            AND user_id = #{userId}
+        </if>
+        <if test="state != null">
+            AND state = #{state}
+        </if>
+    </select>
+
+    <!-- 新增数据 -->
+    <insert id="add" parameterType="UserChequeEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_user_cheque(
+                                user_id,
+                                address,
+                                remark,
+                                token,
+                                create_time
+                        ) VALUES (
+                                #{userId},
+                                #{address},
+                                 #{remark},
+                                 #{token},
+                                 NOW())
+    </insert>
+
+    <!-- 修改数据 -->
+    <update id="update" parameterType="UserChequeEntity">
+        UPDATE t_user_cheque SET
+            <if test="token != null and token != ''">
+                token = #{token},
+            </if>
+            <if test="state != null">
+                state = #{state},
+            </if>
+            <if test="remark != null and remark != ''">
+                remark = #{remark},
+            </if>
+            <if test="address != null and address != ''">
+                address = #{address},
+            </if>
+            version = version + 1
+        WHERE id = #{id} AND user_id = #{userId}
+    </update>
+
+</mapper>

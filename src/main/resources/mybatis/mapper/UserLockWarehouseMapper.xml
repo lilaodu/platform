@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.UserLockWarehouseMapper">
+
+	
+    
+    <!-- 查询锁仓总量 -->
+    <select id="queryLockNumTotal" resultType="java.math.BigDecimal" parameterType="java.lang.Integer">
+        SELECT sum(lock_num) num FROM t_user_lock_warehouse WHERE user_id = #{userId}
+    </select>
+	
+
+    <!--直推用户and数量-->
+    <select id="findUserDirectData" parameterType="UpgradeDTO" resultType="DirectUserVO">
+        SELECT COUNT(DISTINCT t.id ) num,IFNULL(SUM(tulw.lock_num),0) amount FROM t_user t
+          JOIN t_user_lock_warehouse tulw ON t.id = tulw.user_id
+          WHERE t.parent_id = #{userId}
+          <if test="directChildLv != null and directChildLv != ''">
+              AND t.lock_lv = #{directChildLv}
+          </if>
+    </select>
+    
+    <!-- 销毁的记录销毁列表 -->
+    <select id="noUnlock" resultType="UnlockWarehouseFlowVO" parameterType="java.lang.Integer">
+		  SELECT a.*,b.lock_num,b.expire_num FROM t_unlock_warehouse_flow a
+		LEFT JOIN t_user_lock_warehouse b ON b.id = a.user_lock_warehouse_id
+		 WHERE a.user_id = #{userId} AND a.unlock_num = 0 ORDER BY a.create_time DESC 
+    </select>
+    
+    	 
+	<!-- 所有的记录列表 -->
+    <select id="allUnlock" resultType="UnlockWarehouseFlowVO" parameterType="java.lang.Integer">
+		SELECT a.*,b.lock_num,b.expire_num FROM t_unlock_warehouse_flow a
+		LEFT JOIN t_user_lock_warehouse b ON b.id = a.user_lock_warehouse_id
+		 WHERE a.user_id = #{userId} ORDER BY a.create_time DESC
+    </select>
+    
+
+</mapper>

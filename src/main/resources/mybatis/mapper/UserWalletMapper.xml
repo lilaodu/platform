@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+
+<mapper namespace="com.blockchain.platform.mapper.UserWalletMapper">
+    <!-- 钱包资产列表 -->
+    <resultMap id="capitalMap" type="java.util.Map">
+        <collection property="data" select="queryCapital" column="symbol=symbol,userId=userId"/>
+    </resultMap>
+
+
+    <select id="queryCapital" resultType="CapitalVO" parameterType="BaseDTO">
+        <![CDATA[
+              SELECT tcc.symbol token,
+                     tcc.is_t,
+                     tcc.is_otc,
+                     IFNULL(uw.wallet_address, '') address,
+                     IFNULL(uw.balance, 0) balance,
+                     IFNULL(uw.frozen_balance, 0) frozen,
+                     IFNULL(uw.balance - uw.frozen_balance, 0) usable,
+                     IFNULL(uw.balance_otc,0) balance_otc,
+                     IFNULL(uw.frozen_otc, 0) frozen_otc,
+                     IFNULL(uw.balance_otc - uw.frozen_otc, 0) usable_otc,
+                     IFNULL(uw.balance_t,0) balance_t,
+                     IFNULL(uw.frozen_t, 0) frozen_t,
+                     IFNULL(uw.balance_t - uw.frozen_t, 0) usable_t
+              FROM t_coin_config tcc
+              LEFT JOIN t_user_wallet uw ON tcc.symbol = uw.symbol AND uw.user_id = #{userId}
+              WHERE tcc.state = 1
+        ]]>
+        <if test="array != null">
+            AND tcc.symbol IN (
+            <foreach collection="array" item="item" separator=",">
+                #{item}
+            </foreach>
+            )
+        </if>
+        <if test='type != null and type == "1"'>
+            AND tcc.is_t = 'Y'
+        </if>
+        <if test='type != null and type == "2"'>
+            AND tcc.is_otc = 'Y'
+        </if>
+        ORDER BY tcc.sn DESC
+    </select>
+    <select id="queryCapitalAll" resultType="CapitalVO" parameterType="BaseDTO">
+        <![CDATA[
+        SELECT tcc.symbol                                token,
+               IFNULL(uw.wallet_address, '')             address,
+               IFNULL(uw.balance, 0)                     balance,
+               IFNULL(uw.frozen_balance, 0)              frozen,
+               IFNULL(uw.balance - uw.frozen_balance, 0) usable,
+               IFNULL(uw.balance_otc, 0)                 balance_otc,
+               IFNULL(uw.frozen_otc, 0)                  frozen_otc,
+               IFNULL(uw.balance_otc - uw.frozen_otc, 0) usable_otc,
+               IFNULL(uw.balance_t, 0)                   balance_t,
+               IFNULL(uw.frozen_t, 0)                    frozen_t,
+               IFNULL(uw.balance_t - uw.frozen_t, 0)     usable_t
+        FROM t_coin_config tcc
+                 LEFT JOIN t_user_wallet uw ON tcc.symbol = uw.symbol AND uw.user_id = #{userId}
+        WHERE tcc.state = 1
+        ]]>
+        <if test="array != null">
+            AND tcc.symbol IN (
+            <foreach collection="array" item="item" separator=",">
+                #{item}
+            </foreach>
+            )
+        </if>
+        ORDER BY tcc.sn DESC
+    </select>
+    <!-- 钱包资产列表 end -->
+
+    <!-- 更新交易钱包资产 -->
+    <update id="updateAssets" parameterType="UserWalletDTO">
+        UPDATE t_user_wallet
+        set balance        = balance - #{balance},
+            frozen_balance = frozen_balance + #{frozenBalance}
+        WHERE user_id = #{userId}
+          AND symbol = #{symbol}
+          AND frozen_balance + #{frozenBalance}>=0
+          AND balance - #{balance}>=0
+
+    </update>
+
+    <!-- 更新OTC钱包资产 -->
+    <update id="updateOTCAssets" parameterType="UserWalletDTO">
+        UPDATE t_user_wallet
+        set balance_otc = balance_otc - #{balance},
+            frozen_otc  = frozen_otc + #{frozenBalance}
+        WHERE user_id = #{userId}
+          AND symbol = #{symbol}
+          AND balance_otc - #{balance} >= 0
+    </update>
+
+    <!-- 更新钱包账户资产（提、充钱包） -->
+    <update id="updateTAssets" parameterType="UserWalletDTO">
+        UPDATE t_user_wallet
+        set balance_t = balance_t - #{balance},
+            frozen_t  = frozen_t + #{frozenBalance}
+        WHERE user_id = #{userId}
+          AND symbol = #{symbol}
+    </update>
+
+    <!-- 资产流水记录 c2c 划转 充值 -->
+    <select id="queryAssetsFlow" parameterType="PageDTO" resultType="UserAssetsFlowEntity">
+        <![CDATA[
+        SELECT *,
+          CASE WHEN TYPE ='TRANSFER' AND address_to = 'OTC' THEN
+          CASE WHEN  date_sub(now(), INTERVAL 24 HOUR) < create_time THEN 'PENDING'
+            ELSE 'FINISH' END ELSE 'FINISH' END otc_type
+        FROM t_user_assets_flow WHERE 1=1
+      ]]>
+        <if test="userId != null">
+            AND user_id = #{userId}
+        </if>
+        <if test="type != null">
+            AND type = #{type}
+        </if>
+        <if test="title != null">
+            AND (address_from = #{title} OR address_to = #{title})
+        </if>
+        <choose>
+            <when test='state != null and state == 1'>
+                AND state = 'APPLY'
+            </when>
+            <when test='state != null and state == 2'>
+                AND state = 'COMPLETE'
+            </when>
+        </choose>
+        ORDER BY id DESC
+    </select>
+
+    <!-- 审核 -->
+    <update id="modAssetsFlow" parameterType="java.util.Map">
+        UPDATE t_user_assets_flow SET state = #{status},version = VERSION + 1
+        <if test="amount != null and amount > 0">
+            ,amount = #{amount}
+        </if>
+        WHERE id = #{id} AND version = #{version}
+    </update>
+
+    <!--插入工作记录 -->
+    <insert id="addWorkFlow" parameterType="java.util.Map" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_draw_money_flow(user_id,
+                                      flow_id,
+                                      flow_node,
+                                      remark,
+                                      state)
+        VALUES (#{userId},
+                #{flowId},
+                #{flowNode},
+                #{remark},
+                #{state})
+    </insert>
+
+    <update id="updateWalletByOuts" parameterType="java.util.Map">
+        <choose>
+            <when test="type != 'OTC'">
+                UPDATE t_user_wallet SET frozen_t = frozen_t + #{num}
+                WHERE user_id = #{userId} AND symbol = #{symbol}
+            </when>
+            <otherwise>
+                <if test="state != null and state != ''">
+                    UPDATE t_user_wallet SET balance_otc= balance_otc - #{num}, forzen_t = forzen_t - #{num}
+                    WHERE user_id = #{userId} AND symbol = #{symbol}
+                </if>
+
+                <if test="state == null or state == ''">
+                    UPDATE t_user_wallet SET forzen_otc = forzen_otc + #{num}
+                    WHERE user_id = #{userId} AND symbol = #{symbol}
+                </if>
+            </otherwise>
+        </choose>
+    </update>
+    <!-- 添加转入转出记录 -->
+    <insert id="addAssetsFlow" parameterType="UnlockAssetsEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_user_assets_flow(user_id,
+                                       originator,
+                                       type,
+                                       amount,
+                                       symbol,
+                                       address_from,
+                                       address_to,
+                                       out_fee,
+                                       fee_symbol,
+                                       state,
+                                       c2c_amount,
+                                       v_code,
+                                       pay_mentid,
+                                       frozen_amount)
+        VALUES (#{userId},
+                #{originator},
+                #{type},
+                #{amount},
+                #{symbol},
+                #{addressFrom},
+                #{addressTo},
+                #{outFee},
+                #{feeSymbol},
+                #{state},
+                #{c2cAmount},
+                #{vCode},
+                #{paymentId},
+                #{frozenAmount})
+    </insert>
+
+
+    <!-- 更新充值记录表 -->
+    <update id="updateTxFlow" parameterType="java.util.Map">
+        <if test="data != null">
+            <foreach collection="data" item="flow" index="idx" separator=";">
+                UPDATE t_user_assets_flow SET frozen_amount = frozen_amount - #{flow.balance} WHERE id = #{flow.id}
+            </foreach>
+        </if>
+        <if test="data == null">
+            UPDATE t_user_assets_flow SET frozen_amount = frozen_amount - #{amount} WHERE id = #{id}
+        </if>
+    </update>
+
+
+    <!-- 批量更新用户基础货币钱包余额,解冻用户资金 -->
+    <update id="mdfUserWalletsForUnlock" parameterType="java.util.Map" statementType="PREPARED">
+        <foreach collection="data" item="flow" separator=";">
+            UPDATE t_${flow.symbol}_user_wallet SET frozen_otc =
+            frozen_otc - #{flow.balance} WHERE user_id = #{flow.userId}
+        </foreach>
+    </update>
+
+    <update id="updateUserWallet" parameterType="UserWalletDTO">
+        UPDATE t_user_wallet
+        SET balance_t = balance_t - #{balance},
+            frozen_t  = frozen_t + #{frozenBalance}
+        WHERE user_id = #{userId}
+          AND symbol = #{symbol}
+    </update>
+
+    <insert id="addUserWallet" parameterType="UserWalletDTO">
+        INSERT INTO t_user_wallet(user_id,
+                                  symbol,
+                                  balance_otc,
+                                  frozen_otc)
+        VALUES (#{userId},
+                #{symbol},
+                #{balance},
+                #{frozenBalance})
+    </insert>
+
+    <select id="validateBalance" resultType="UserWalletEntity" parameterType="java.util.Map">
+        <![CDATA[
+        SELECT t.*,
+               (CASE WHEN t.unOtc < 0 THEN 0 ELSE t.unOtc END) pendingOtc
+        FROM (SELECT *,
+                     (SELECT ifnull((sum(CASE WHEN address_to = 'OTC' THEN amount ELSE 0 END) -
+                                     sum(CASE WHEN address_from = 'OTC' THEN amount ELSE 0 END)), 0)
+                      FROM t_user_assets_flow ow
+                      WHERE ow.type = 'TRANSFER'
+                        AND (address_from = 'OTC' OR address_to = 'OTC')
+                        AND date_sub(now(), INTERVAL 24 HOUR) < ow.create_time
+                        AND ow.user_id = 1
+                        AND id >= (SELECT MIN(id)
+                                   FROM t_user_assets_flow w
+                                   WHERE w.type = 'TRANSFER'
+                                     AND address_to = 'OTC'
+                                     AND date_sub(now(), INTERVAL 24 HOUR) < w.create_time
+                                     AND w.user_id = #{userId}
+                                   ORDER BY id)) unOtc
+              FROM t_user_wallet t
+              WHERE t.symbol = #{symbol}
+                AND t.user_id = #{userId}) t;
+        ]]>
+    </select>
+
+    <select id="findByCondition" parameterType="BaseDTO" resultType="UserWalletEntity">
+        SELECT *
+        FROM t_user_wallet
+        WHERE user_id = #{userId}
+          AND symbol = #{symbol}
+    </select>
+
+
+    <!-- 锁仓 -->
+    <update id="lockUserWallet" parameterType="UserLockWarehouseEntity">
+        UPDATE t_user_wallet
+        SET frozen_balance = frozen_balance + #{lockNum},
+            version  = version + 1
+        WHERE balance - frozen_balance >= #{lockNum}
+          AND user_id = #{userId}
+          AND symbol = #{symbol}
+    </update>
+
+    <!-- 赠送 -->
+    <update id="giveUserWallet" parameterType="UserLockWarehouseEntity">
+        UPDATE t_user_wallet
+        SET balance = balance + #{giveCoinNum},
+            version   = version + 1
+        WHERE user_id = #{userId}
+          AND symbol = #{symbol}
+    </update>
+
+    <!-- 解仓 -->
+    <update id="unlockUserWallet" parameterType="BaseDTO">
+        UPDATE t_user_wallet
+        SET frozen_balance = frozen_balance - #{unlockNum},
+            version  = version + 1
+        WHERE balance >= frozen_balance
+          AND user_id = #{userId}
+          AND symbol = #{symbol}
+    </update>
+
+    <insert id="addWallet" parameterType="UserWalletEntity">
+        INSERT INTO t_user_wallet(user_id,
+                                  symbol,
+                                  wallet_address)
+        VALUES (#{userId},
+                #{symbol},
+                #{walletAddress})
+    </insert>
+
+    <update id="updateWallet" parameterType="UserWalletEntity">
+        UPDATE t_user_wallet SET
+        <if test='walletAddress != null and walletAddress != ""'>
+            wallet_address = #{walletAddress},
+        </if>
+        version = version + 1
+        WHERE user_id = #{userId} AND symbol = #{symbol}
+    </update>
+
+
+    <!-- 更新用户钱包余额,解冻用户资金 -->
+    <update id="frozenUserWallet" parameterType="OrderFlowEntity">
+        UPDATE t_user_wallet SET
+        <if test="type == 'BUY'">
+            frozen_balance = frozen_balance + #{totalPrice}
+            ,version = version +1 WHERE balance - frozen_balance >= #{totalPrice}
+        </if>
+        <if test="type == 'SELL'">
+            frozen_balance = frozen_balance + #{num}
+            ,version = version +1 WHERE balance - frozen_balance >= #{num}
+        </if>
+        AND user_id = #{userId} AND symbol = #{symbol}
+    </update>
+    <!-- 批量更新用户基础货币钱包余额,解冻用户资金 -->
+    <update id="mdfUserBaseWalletsForList" parameterType="java.util.Map">
+        <foreach collection="data" item="order" separator=";">
+            <if test="type == 'BUY'">
+                INSERT INTO t_user_wallet( balance,user_id)VALUES (#{order.sellBaseCoinNum},#{order.userId})
+                ON DUPLICATE KEY UPDATE balance = balance + #{order.buyBaseCoinNum} ,version = version +1
+            </if>
+            <if test="type == 'SELL'">
+                UPDATE t_user_wallet SET balance = balance - #{order.sellBaseCoinNum},frozen_balance = frozen_balance -
+                #{order.buyBaseCoinNum},version = version +1
+                WHERE user_id = #{order.userId} AND symbol = #{symbol} AND balance >=#{order.buyBaseCoinNum} AND
+                frozen_balance >= #{order.buyBaseCoinNum}
+            </if>
+        </foreach>
+    </update>
+    <!-- 批量更新用户钱包余额,解冻用户资金 -->
+    <update id="mdfUserWalletsForList" parameterType="java.util.Map">
+        <foreach collection="data" item="order" separator=";">
+            <if test="type == 'BUY'">
+                UPDATE t_user_wallet SET
+                balance = balance - #{order.sellBaseCoinNum},
+                frozen_balance = frozen_balance - #{order.sellBaseCoinNum},
+                version = version +1
+                WHERE user_id = #{order.userId} AND symbol = #{symbol}
+            </if>
+            <if test="type == 'SELL'">
+                INSERT INTO t_user_wallet(balance,user_id,symbol)VALUES (#{order.buyCoinNum},#{order.userId}, #{symbol})
+                ON DUPLICATE KEY UPDATE balance = balance + #{order.buyCoinNum} ,version = version +1
+            </if>
+        </foreach>
+    </update>
+    <!-- 更新用户代币钱包余额,解冻用户资金 -->
+    <update id="mdfUserWallet" parameterType="OrderFlowEntity">
+        <if test="type == 'BUY'">
+            INSERT INTO t_user_wallet(balance,user_id)VALUES (#{buyCoinNum},#{userId})
+            ON DUPLICATE KEY UPDATE balance = balance + #{buyCoinNum},version = version +1
+        </if>
+        <if test="type == 'SELL'">
+            UPDATE t_user_wallet SET balance = balance - #{sellCoinNum},frozen_balance = frozen_balance -
+            #{sellCoinNum},version = version + 1
+            WHERE user_id = #{userId} AND symbol = #{symbol} AND balance >= #{sellCoinNum} AND frozen_balance >=
+            #{sellCoinNum}
+        </if>
+    </update>
+    <!-- 更新用户钱包余额,解冻用户资金 -->
+    <update id="mdfBaseUserWallet" parameterType="OrderFlowEntity">
+        <if test="type == 'BUY'">
+            UPDATE t_user_wallet SET
+            balance = balance - #{buyBaseCoinNum}
+            ,frozen_balance = frozen_balance - #{unfreezePrice}
+            ,version = version +1
+            WHERE user_id = #{userId} AND symbol = #{symbol} AND balance >= #{buyBaseCoinNum} AND frozen_balance>=
+            #{unfreezePrice}
+        </if>
+        <if test="type == 'SELL'">
+            INSERT INTO t_user_wallet( balance,user_id,symbol)VALUES (#{sellBaseCoinNum},#{userId}, #{symbol})
+            ON DUPLICATE KEY UPDATE balance = balance + #{sellBaseCoinNum} ,version = version +1
+        </if>
+    </update>
+    <update id="mdfUserWalletForCancel" parameterType="OrderFlowEntity">
+        UPDATE t_user_wallet
+        SET frozen_balance = frozen_balance - #{totalPrice},
+            version        = version + 1
+        WHERE user_id = #{userId}
+          AND symbol = #{symbol}
+          AND frozen_balance >= #{totalPrice}
+    </update>
+
+    <resultMap id="otc" type="java.util.Map">
+        <collection property="data" select="queryOtcAsset" column="symbol=symbol,userId=userId"/>
+    </resultMap>
+
+    <!-- 更新用户钱包余额,扣除秒合约下单费用 -->
+    <update id="deductionUserWallet" parameterType="SecondsContractOrderEntity">
+        UPDATE t_user_wallet SET
+        <if test="isWin == 1">
+            balance_t = balance_t - #{price}
+            ,version = version +1
+            WHERE balance_t - frozen_t >= #{price}
+            AND user_id =  #{userId} AND symbol = #{payCoin}
+        </if>
+        <if test="isWin == 3 || isWin == 2">
+            balance_t = balance_t + #{winPrice}
+            ,version = version +1 WHERE user_id =  #{userId} AND symbol = #{payCoin}
+        </if>
+    </update>
+
+    <select id="findWalletAddress" parameterType="BaseDTO" resultType="UserWalletEntity">
+        SELECT tuw.*
+        FROM t_user_wallet tuw
+        WHERE tuw.user_id = #{userId}
+          AND symbol IN (
+            SELECT symbol FROM t_wallet_config WHERE coin_type = #{type} AND state = #{state}
+        )
+          AND tuw.wallet_address IS NOT NULL
+        LIMIT 1
+    </select>
+</mapper>

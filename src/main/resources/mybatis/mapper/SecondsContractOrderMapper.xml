@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.SecondsContractOrderMapper">
+	
+    <!-- 更新用户钱包余额,扣除秒合约下单费用 
+    <update id="deductionUserWallet"  parameterType="SecondsContractOrderEntity" >
+        UPDATE t_user_wallet SET
+        <if test="isWin == 1">
+            balance_otc = balance_otc - #{price}
+            ,version = version +1 
+            WHERE balance_otc - frozen_otc >= #{price}
+            AND user_id =  #{userId}
+        </if>
+        <if test="isWin == 3 || isWin == 2">
+            balance_otc = balance_otc + #{winPrice}
+            ,version = version +1 WHERE user_id =  #{userId}
+        </if>
+          
+    </update> -->
+    
+    <!-- 当天的秒合约订单 -->
+    <select id="queryOrderOnDay" resultType="SecondsContractOrderEntity" parameterType="java.lang.Integer">
+    	SELECT * FROM t_seconds_contract_order_flow WHERE to_days(create_time) = to_days(now())
+    </select>
+
+
+    <select id="count"  parameterType="java.lang.Integer"  resultType="java.lang.Integer">
+            select count(1) from t_seconds_contract_order_flow where user_id=#{userId}
+    </select>
+
+
+
+    <select id="queryUnCompleted" resultType="SecondsContractOrderEntity" >
+        SELECT * FROM t_seconds_contract_order_flow WHERE  state &lt;  4
+    </select>
+
+
+
+</mapper>

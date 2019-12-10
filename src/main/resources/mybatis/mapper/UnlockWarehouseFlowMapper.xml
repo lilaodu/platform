@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.UnlockWarehouseFlowMapper">
+
+	<!-- 获取当天某个锁仓订单的解锁情况 -->
+	<select id="dayUnlockWarehouseFlow" parameterType="java.util.Map" resultType="UnlockWarehouseFlowEntity">
+    SELECT * FROM t_unlock_warehouse_flow WHERE  user_id = #{user_id} AND state = #{state} AND user_lock_warehouse_id = #{user_lock_warehouse_id} AND date(create_time) = curdate(); 
+	</select>  
+	
+	<!-- 获取当前解锁流水 -->
+	<select id="dayFlowList" parameterType="java.lang.Integer" resultType="UnlockWarehouseFlowEntity">
+		<![CDATA[
+	    	SELECT * FROM t_unlock_warehouse_flow WHERE  user_id = #{userId} AND date(create_time) = curdate(); 
+	    ]]>
+	</select>  
+	
+	<select id="needDestruction" resultType="UserLockWarehouseEntity">
+		SELECT l.* FROM t_user_lock_warehouse l LEFT JOIN (SELECT * FROM t_unlock_warehouse_flow WHERE to_days(create_time) = to_days(now())) ul
+														  ON l.id = ul.user_lock_warehouse_id  WHERE l.state = 1 AND (ul.id IS null  or ul.unlock_num_z>0)
+	</select>  
+	
+	
+	
+</mapper>

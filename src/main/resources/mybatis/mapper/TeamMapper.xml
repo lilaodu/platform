@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.TeamMapper">
+
+
+    <select id="extension" parameterType="BaseDTO" resultType="ExtensionVO">
+         SELECT t.rank contractLv, t.lock_lv, tm.*,ttm.contractDirectNum,ttm.contractTeamNum
+              FROM t_user t, (
+                SELECT #{userId} userId,CASE WHEN COUNT(1) > 0 THEN COUNT(1) ELSE 0 END teamNum,
+                  SUM( CASE WHEN tt.verified = 6 AND tt.id != #{userId} THEN 1 ELSE 0 END) realTeamNum,
+                  IFNULL(SUM(CASE WHEN tt.parent_id = #{userId} THEN 1 ELSE 0 END), 0) directNum,
+                  IFNULL(SUM(CASE WHEN tt.parent_id = #{userId} AND tt.verified = 6 THEN 1 ELSE 0 END), 0) realDirectNum,
+                  IFNULL(SUM(CASE WHEN tt.rank = 'RC' AND tt.id != #{userId} THEN 1 ELSE 0 END), 0) rcNum,
+                  IFNULL(SUM(CASE WHEN tt.rank = 'DC' AND tt.id != #{userId} THEN 1 ELSE 0 END), 0) dcNum,
+                  IFNULL(SUM(CASE WHEN tt.rank = 'AC' AND tt.id != #{userId} THEN 1 ELSE 0 END), 0) acNum,
+                  ( SELECT COUNT(DISTINCT tuwf.user_id) FROM t_unlock_warehouse_flow tuwf WHERE EXISTS(
+                    SELECT 1 FROM t_user tmf WHERE tmf.authority LIKE CONCAT(#{authority},'%') AND tuwf.user_id = tmf.id
+                  )) lockNum
+                  FROM t_user tt
+                  WHERE tt.authority LIKE CONCAT(#{authority},'%')
+              ) tm,(
+                  SELECT #{userId} userId, IFNULL(SUM(CASE WHEN ttt.parent_id = #{userId} THEN 1 ELSE 0 END), 0) contractDirectNum,
+                        IFNULL(SUM(CASE WHEN ttt.parent_id != #{userId} AND ttt.id != #{userId} THEN 1 ELSE 0 END ),0) contractTeamNum
+                      FROM t_user ttt WHERE ttt.authority LIKE CONCAT(#{authority},'%')
+                          AND EXISTS( SELECT 1 FROM t_seconds_contract_order_flow tscof WHERE tscof.user_id = ttt.id)
+              ) ttm
+              WHERE tm.userId = t.id AND ttm.userId = t.id AND t.id = #{userId}
+    </select>
+    
+    <!-- 添加查询直推个节点人数-->
+    <select id="extensionZT" parameterType="BaseDTO" resultType="ExtensionVO">
+	    SELECT  
+			(SELECT COUNT(id) FROM t_user WHERE parent_id = #{userId} AND rank = 'RC') rcSum,
+			(SELECT COUNT(id) FROM t_user WHERE parent_id = #{userId} AND rank = 'DC') dcSum,
+			(SELECT COUNT(id) FROM t_user WHERE parent_id = #{userId} AND rank = 'AC') acSum,
+	 			
+			(SELECT COUNT(id) FROM t_user WHERE parent_id = #{userId} AND lock_lv = 4) cjSum,
+			(SELECT COUNT(id) FROM t_user WHERE parent_id = #{userId} AND lock_lv = 5) zjSum,
+			(SELECT COUNT(id) FROM t_user WHERE parent_id = #{userId} AND lock_lv = 6) gjSum,
+			
+			(SELECT COUNT(id) FROM t_user u WHERE parent_id = #{userId} AND EXISTS( SELECT 1 FROM t_user_lock_warehouse l WHERE l.user_id = u.id) ) zcSum 
+	 	FROM t_user WHERE id = #{userId}
+    </select>
+    
+    <!-- 秒合约 收益-->
+    <select id="contract" parameterType="BaseDTO" resultType="ProfitVO">
+        SELECT tc.symbol, IFNULL(tt.amount,0) amount FROM t_coin_config tc
+            LEFT JOIN (
+              SELECT symbol, IFNULL(SUM(IFNULL(amount,0)), 0) amount
+                FROM t_user_trade_profit
+                WHERE TO_DAYS(create_time) = TO_DAYS(CURDATE()) AND user_id = #{userId}
+                AND state = 1
+                GROUP BY symbol
+            ) tt ON tt.symbol = tc.symbol
+          WHERE  tc.is_t = 'Y' AND tc.state = 1
+    </select>
+    
+    <!-- 秒合约USDT团队总 交易额-->
+    <select id="tradeQuota" parameterType="BaseDTO" resultType="ExtensionVO">
+       SELECT IFNULL(SUM(price), 0) tradeQuota FROM 
+		(SELECT a.*,b.id bid FROM t_seconds_contract_order_flow a
+		LEFT JOIN 
+		(SELECT id FROM t_user WHERE authority LIKE CONCAT(#{authority},'%')) b 
+		ON a.user_id = b.id
+		WHERE a.pay_coin = "USDT" 
+		) c WHERE bid is not null 
+    </select>
+    
+    <!-- 昨日总业绩 -->
+    <select id="teamLockNum" parameterType="BaseDTO" resultType="ExtensionVO">
+      SELECT IFNULL(SUM(lock_num), 0) teamLockNum FROM 
+		(SELECT a.*,b.id bid FROM t_user_lock_warehouse a
+		LEFT JOIN 
+		(SELECT id FROM t_user WHERE authority LIKE CONCAT(#{authority},'%')) b 
+		ON a.user_id = b.id
+ 		WHERE a.state = 1 
+		) c WHERE bid is not null 
+    </select>
+    
+    
+    
+    
+    <!-- 星球计划收益 -->
+    <select id="profit" parameterType="BaseDTO" resultType="ProfitVO">
+        SELECT  tlwc.coin symbol,IFNULL(SUM(IFNULL(tuwf.unlock_num,0)), 0) amount
+          FROM t_lock_warehouse_config tlwc
+            LEFT JOIN t_unlock_warehouse_flow tuwf
+            ON tlwc.coin = tuwf.symbol AND TO_DAYS(tuwf.unlock_date) = TO_DAYS(CURDATE())
+            AND tuwf.user_id = #{userId}
+          WHERE tlwc.state = #{state}
+          GROUP BY tlwc.coin;
+    </select>
+
+    <!-- 秒合约 收益明细-->
+    <select id="contracts" parameterType="PageDTO" resultType="RewardsVO">
+        SELECT create_time time,amount,symbol,product_user_id ,id FROM t_user_trade_profit WHERE user_id = #{userId} ORDER BY id DESC
+    </select>
+
+    <!-- 星球计划收益明细 -->
+    <select id="profits" parameterType="PageDTO" resultType="RewardsVO">
+        SELECT
+          symbol,unlock_num amount,unlock_date time
+        FROM t_unlock_warehouse_flow WHERE user_id = #{userId} AND unlock_num > 0
+        ORDER BY id DESC
+    </select>
+
+    
+    <resultMap id="TeamMap" type="TeamDetailVO">
+        <result column="mobile" property="mobile" />
+        <result column="email" property="email"/>
+        <result column="verified" property="verified"/>
+        <collection property="list" ofType="TeamDetailVO" >
+            <result column="m2" property="mobile"/>
+            <result column="e2" property="email"/>
+            <result column="v2" property="verified"/>
+        </collection>
+    </resultMap>
+    
+    <select id="stage" parameterType="PageDTO" resultMap="TeamMap">
+        SELECT t1.id, t1.mobile,t1.email,t1.verified  ,
+                  t2.mobile m2, t2.email e2, t2.verified v2
+                FROM t_user t1 LEFT JOIN t_user t2 ON t2.parent_id = t1.id
+          WHERE t1.parent_id = #{userId}
+        ORDER BY t1.id
+    </select>
+</mapper>

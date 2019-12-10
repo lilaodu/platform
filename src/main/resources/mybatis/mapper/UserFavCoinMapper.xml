@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.UserFavCoinMapper">
+
+<!-- 用户自选货币 -->
+    <select id="findFavByCondition" resultType="UserFavCoinEntity" parameterType="FavCoinDTO">
+          SELECT * FROM t_user_fav_coin WHERE user_id = #{userId}
+            AND symbol = #{symbol} AND market = #{market}
+    </select>
+
+    <select id="favorTokens" parameterType="BaseDTO" resultType="UserFavCoinVO">
+          SELECT * FROM t_user_fav_coin WHERE user_id = #{userId} AND state = #{state}
+    </select>
+</mapper>

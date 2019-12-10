@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 字典查询数据 -->
+<mapper namespace="com.blockchain.platform.mapper.DictionaryMapper">
+
+    <!-- 首页banner数据 -->
+    <select id="banner" parameterType="BaseDTO" resultType="BannerVO">
+        SELECT * FROM t_banner WHERE state = #{state}
+          <if test="lang != null and lang != ''">
+              AND lang = #{lang}
+          </if>
+          ORDER BY sn DESC
+    </select>
+
+    <!-- 首页通知数据 -->
+    <select id="notice" parameterType="BaseDTO" resultType="NoticeVO">
+        SELECT * FROM t_activity WHERE state = #{state}
+        <if test="lang != null and lang != ''">
+            AND lang = #{lang}
+        </if>
+        ORDER BY sn DESC
+    </select>
+
+    <!-- 默认文章数据 -->
+    <select id="article" parameterType="BaseDTO" resultType="ArticleVO">
+        SELECT * FROM t_article WHERE state = #{state}
+        <if test="lang != null and lang != ''">
+            AND lang = #{lang}
+        </if>
+        ORDER BY id DESC
+    </select>
+
+    <!-- 默认货币配置 -->
+    <select id="coin" parameterType="BaseDTO" resultType="CoinEntity">
+        SELECT tcc.*,(SELECT twc.wallet_address FROM t_wallet_config twc WHERE twc.symbol = tcc.symbol) wallet_address
+            FROM t_coin_config tcc WHERE tcc.state = #{state}
+          ORDER BY tcc.sn DESC
+    </select>
+
+    <!-- 交易对信息 -->
+    <select id="pairs" parameterType="BaseDTO"  resultType="MarketCoinEntity">
+        SELECT * FROM t_market_coin WHERE state = #{state}
+    </select>
+
+    <!-- 系统参数配置 -->
+    <select id="params"  parameterType="BaseDTO" resultType="ParamsVO">
+        select param_type,param_value from t_params where state = #{state}
+    </select>
+    
+    <!-- 秒合约系统参数配置 -->
+    <select id="secondsContract"  parameterType="BaseDTO" resultType="SecondsContractEntity">
+        SELECT * FROM t_seconds_contract_config WHERE state = #{state}
+    </select>
+    
+    <select id="market" parameterType="BaseDTO" resultType="MarketConfigEntity">
+        SELECT * FROM t_market_configs WHERE state = #{state} ORDER BY sn DESC
+    </select>
+
+    <resultMap id="drawVO" type="LuckDrawVO">
+        <collection property="prize" column="id=id,state=state" ofType="LuckDrawConfigVO" select="prize"/>
+    </resultMap>
+
+    <select id="draw" parameterType="BaseDTO" resultMap="drawVO">
+        SELECT
+          id,name,image,icon,is_home,day_amount,state,kyc_num,contract_num
+        FROM t_luck_draw WHERE state = #{state}
+        ORDER BY sn DESC
+    </select>
+
+    <select id="prize" parameterType="java.util.Map" resultType="LuckDrawConfigVO">
+        SELECT * FROM t_luck_draw_config
+        WHERE draw_id = #{id} AND state = #{state}
+        ORDER BY position
+    </select>
+
+    <select id="dict" parameterType="BaseDTO" resultType="java.lang.String">
+        SELECT field FROM t_dictionary WHERE type = #{type} AND state = #{state}
+    </select>
+
+    <select id="advert" parameterType="BaseDTO" resultType="OTCAdvertVO">
+        SELECT * FROM t_otc_advert WHERE state = #{state}
+    </select>
+
+    <select id="wallet" parameterType="BaseDTO" resultType="WalletConfigEntity">
+        SELECT * FROM t_wallet_config WHERE state = #{state}
+    </select>
+
+    <select id="merchants" parameterType="BaseDTO" resultType="java.lang.String">
+        SELECT DISTINCT user_id FROM t_otc_merchant WHERE state = #{state}
+    </select>
+
+    <select id="upgrade" parameterType="BaseDTO" resultType="UserUpgradeEntity">
+        SELECT * FROM t_user_upgrade_config WHERE state = #{state} ORDER BY sn
+    </select>
+</mapper>

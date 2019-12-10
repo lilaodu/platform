@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.DrawMapper">
+
+    <resultMap id="draw" type="LuckDrawVO">
+        <collection property="prize" column="id=id,state=state" ofType="LuckDrawConfigVO" select="prize"/>
+    </resultMap>
+
+    <select id="query" parameterType="BaseDTO" resultType="LuckDrawVO">
+        SELECT
+          id,name,image,icon,is_home,day_amount,state,kyc_num,contract_num
+        FROM t_luck_draw WHERE state = #{state}
+        <if test='id != null'>
+            AND id = #{id}
+        </if>
+        ORDER BY sn DESC
+    </select>
+
+    <select id="list" parameterType="BaseDTO" resultType="LuckDrawConfigVO">
+        SELECT * FROM t_luck_draw_config WHERE draw_id = #{id} AND state = #{state}
+        <if test='type != null'>
+            AND type = #{type}
+        </if>
+        ORDER BY position
+    </select>
+
+    <select id="log" parameterType="PageDTO" resultType="LuckDrawLogVO">
+        SELECT
+          tldl.id,tldl.username,tldl.symbol,tldl.num, tldl.create_time time,
+          (SELECT head_image FROM t_user tu WHERE tu.id = tldl.user_id) head_image
+        FROM t_luck_draw_log tldl
+        WHERE tldl.draw_id = #{id}
+        <if test='type != null and type != ""'>
+            AND is_prize = #{type}
+        </if>
+        <if test='userId != null'>
+          AND user_id = #{userId}
+        </if>
+        ORDER BY id DESC
+    </select>
+
+    <select id="history" parameterType="BaseDTO" resultType="LuckDrawLogVO">
+        SELECT
+          id,username,symbol,num, create_time time
+        FROM t_luck_draw_log
+        WHERE draw_id = #{id}
+        <if test='type != null and type != ""'>
+            AND is_prize = #{type}
+        </if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <resultMap id="prize" type="PrizeVO">
+        <association property="contract" select="contract" column="userId=userId" javaType="java.lang.Integer"/>
+        <association property="draw" select="draw" column="userId=userId" javaType="java.lang.Integer"/>
+    </resultMap>
+
+    <!-- kyc认证人数 -->
+    <select id="count" parameterType="BaseDTO" resultMap="prize">
+        SELECT COUNT(id) kyc,#{userId} userId FROM t_user WHERE parent_id = #{userId} AND verified = 6
+    </select>
+
+    <!-- 秒合约订单数 -->
+    <select id="contract" parameterType="java.util.Map" resultType="java.lang.Integer">
+        SELECT COUNT(id) contract FROM t_seconds_contract_order_flow WHERE user_id = #{userId} AND state = 4
+    </select>
+
+    <!-- 用户已抽奖次数 -->
+    <select id="draw" parameterType="java.util.Map" resultType="java.lang.Integer">
+        SELECT COUNT(id) draw FROM t_luck_draw_log WHERE user_id = #{userId}
+    </select>
+
+    <select id="findDraw" parameterType="BaseDTO" resultType="LuckDrawDTO">
+        SELECT
+          IFNULL(f.first,0) first,IFNULL(n.num,0) num,IFNULL(p.prize,0) prize
+        FROM
+            (SELECT draw_id,IFNULL(SUM(num),0) num FROM t_luck_draw_log WHERE draw_id = #{id} AND is_prize = 'Y'
+                  AND DATE_FORMAT(create_time,'%Y-%m-%d') = DATE_FORMAT(NOW(),'%Y-%m-%d')) n
+        LEFT JOIN
+            (SELECT tld.config_id first,tld.draw_id FROM t_luck_draw_log tld WHERE tld.draw_id =  #{id}
+                  AND EXISTS( SELECT 1 FROM t_luck_draw_config ldc WHERE ldc.id = tld.config_id AND ldc.prize = 8)
+                  AND DATE_FORMAT(tld.create_time,'%Y-%m-%d') = DATE_FORMAT(NOW(),'%Y-%m-%d')) f ON n.draw_id = f.draw_id
+        LEFT JOIN
+            (SELECT p.draw_id,p.config_id prize FROM
+              (SELECT * FROM t_luck_draw_log WHERE draw_id =  #{id}
+                      AND DATE_FORMAT(create_time,'%Y-%m-%d') = DATE_FORMAT(NOW(),'%Y-%m-%d') LIMIT #{limit},40) p
+                WHERE p.draw_id =  #{id} AND
+                  EXISTS(SELECT 1 FROM t_luck_draw_config ldc WHERE ldc.id = p.config_id AND ldc.prize IN(5,6,7,8)) LIMIT 1) p ON p.draw_id = n.draw_id
+    </select>
+
+    <insert id="addLog" parameterType="LuckDrawLogEntity">
+        INSERT INTO t_luck_draw_log(
+                              user_id,
+                              draw_id,
+                              config_id,
+                              is_prize,
+                              symbol,
+                              num,
+                              username,
+                              create_time
+                        ) VALUES (
+                              #{userId},
+                              #{drawId},
+                              #{configId},
+                              #{isPrize},
+                              #{symbol},
+                              #{num},
+                              #{username},
+                              NOW()
+                        )
+    </insert>
+
+    <select id="countLog" parameterType="BaseDTO" resultType="java.lang.Integer">
+        SELECT COUNT(id) total FROM t_luck_draw_log WHERE draw_id = #{id}
+    </select>
+
+    <select id="findByCondition" parameterType="BaseDTO" resultType="LuckDrawEntity">
+        SELECT * FROM t_luck_draw WHERE id = #{id} AND state = #{state}
+    </select>
+</mapper>

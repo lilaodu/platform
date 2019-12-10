@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.AdviceMapper">
+
+    <!-- 新增留言 -->
+    <insert id="add" parameterType="UserAdviceEntity" keyProperty="id" useGeneratedKeys="true">
+        INSERT INTO t_user_advice(
+                              user_id,
+                              bill_no,
+                              content,
+                              create_time,
+                              state,
+                              type
+                          ) VALUES (
+                               #{userId},
+                               #{billNo},
+                               #{content},
+                               NOW(),
+                               #{state},
+                               #{type})
+    </insert>
+
+    <!-- 修改用户 -->
+    <update id="update" parameterType="UserAdviceEntity">
+        UPDATE t_user_advice SET
+            <if test="state != null and state != ''">
+                state = #{state},
+            </if>
+            <if test="content != null and content != ''">
+                content = #{content},
+            </if>
+          version = version + 1
+        WHERE id = #{id}
+    </update>
+
+    <update id="close" parameterType="UserAdviceEntity">
+        UPDATE t_user_advice SET version = version + 1, state = #{state}
+        WHERE bill_no = #{billNo}
+    </update>
+
+    <resultMap id="AdviceMap" type="UserAdviceVO">
+        <collection property="details" column="userId=userId,billNo=bill_no" select="queryList"/>
+    </resultMap>
+
+    <!-- 分页查询数据 -->
+    <select id="query" parameterType="PageDTO" resultMap="AdviceMap">
+        SELECT t.bill_no,t.state,MIN(t.create_time) `time`,#{userId} userId
+            <if test="userId == null">
+                ,MAX(t.id) id, (
+                    SELECT u.PHONE FROM USER u, t_user_advice tua WHERE u.ID = tua.user_id
+                    AND tua.id = MIN(t.id)
+                ) mobile
+            </if>
+          FROM t_user_advice t WHERE t.id > 0
+          <if test="userId != null and userId != ''">
+              AND t.user_id = #{userId}
+          </if>
+          <if test="state != null and state != null">
+              AND t.state = #{state}
+          </if>
+          GROUP BY t.bill_no, t.state
+          ORDER BY MIN(t.id) DESC
+    </select>
+
+    <select id="queryList" parameterType="java.util.Map" resultType="ContentVO">
+        SELECT
+            content,
+                CASE
+                WHEN #{userId} IS NULL THEN (SELECT CASE WHEN 120 != u.SIGN THEN 0 ELSE 1 END FROM USER u WHERE u.ID = user_id)
+                WHEN user_id = #{userId}
+                THEN 0 ELSE 1 END is_reply,create_time `time`,type
+        FROM t_user_advice
+        WHERE bill_no = #{billNo}
+        ORDER BY id ASC
+    </select>
+
+    <!-- 查询详情 -->
+    <select id="findByCondition" parameterType="BaseDTO" resultType="UserAdviceEntity">
+        SELECT * FROM t_user_advice WHERE id > 0
+          <if test="state != null">
+              AND state = #{state}
+          </if>
+          <if test="id != null">
+              AND id = #{id}
+          </if>
+    </select>
+
+    <!-- 用户最后一次留言 -->
+    <select id="findUserLastAdvice" parameterType="BaseDTO" resultType="UserAdviceEntity">
+         SELECT * FROM t_user_advice
+         WHERE user_id = #{userId}
+            AND state = #{state}
+         ORDER BY id DESC LIMIT 1
+    </select>
+
+</mapper>

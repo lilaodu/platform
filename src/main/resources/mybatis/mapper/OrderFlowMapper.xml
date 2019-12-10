@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.OrderFlowMapper">
+
+	<!-- 交易所排行榜 开始 -->
+	<resultMap id="rankingMap" type="RankingDTO">
+        <collection property="tick" select="queryTick" column="symbol=tableName,ts=inDate,now=nowTime"/>
+    </resultMap>
+	
+	<select id="queryTokenRanking" resultMap="rankingMap" parameterType="BaseDTO">
+	    SELECT
+			tcc.is_home,
+			tcc.symbol,
+			tcc.is_new,
+			tcc.sn,
+			tmc.market,
+			tcc.chinese_name,
+			tcc.icon,
+			(
+				SELECT
+					tc.dec_length
+				FROM
+					t_coin_config tc
+				WHERE
+					tc.symbol = tmc.market
+			) dec_length,
+			UNIX_TIMESTAMP(
+				DATE_FORMAT(NOW(), '%Y-%m-%d')
+			) inDate,
+			UNIX_TIMESTAMP(NOW()) nowTime,
+			tmc.table_name tableName,
+			tcc.type
+		FROM
+			t_coin_config tcc,
+			t_market_coin tmc
+		WHERE
+		tmc.symbol = tcc.symbol
+		AND tcc.state = #{state} AND tmc.state = #{state}
+		<if test = "market != null and market != ''" >
+			AND tmc.market = #{market}
+		</if > 
+		<if test = "coin != null and coin != ''" >
+			AND tmc.symbol = #{coin}
+		</if >
+		ORDER BY
+			tmc.sn DESC
+    </select>
+    
+    <select id="queryTick" resultType="java.util.Map" parameterType="java.util.Map">
+        <![CDATA[
+	        SELECT CONCAT(total) total, CONCAT(totalcoin) totalAmount,CONCAT(high) high,CONCAT(low) low,CONCAT(o) `open`,CONCAT(n) `close`,n - o changeValue, IFNULL(CAST( (n - o) / o  AS DECIMAL(20, 4) ) ,0) changeRange,CONCAT(lowestAsk) lowestAsk,CONCAT(highestBid) highestBid
+			FROM (
+				SELECT 
+					IFNULL(SUM(deal_num), 0) total,
+					IFNULL(SUM(total_price), 0) totalcoin,
+					IFNULL(MAX(deal_price), 0) high,
+					IFNULL(MIN(deal_price), 0) low,
+			    IFNULL(
+						(SELECT deal_price 
+						 FROM deal_flow
+						 WHERE UNIX_TIMESTAMP(deal_time) <= #{ts} ORDER BY id DESC LIMIT 0, 1
+						), 
+						IFNULL((
+							SELECT deal_price 
+							FROM deal_flow 
+							ORDER BY id limit 1),0)) o,
+					IFNULL((
+						SELECT deal_price
+			      FROM deal_flow
+			      ORDER BY id DESC
+			      LIMIT 0, 1), 0) n,
+			    	#{symbol} symbol,
+					IFNULL((
+			      SELECT MAX(price) 
+						FROM order_flow 
+						WHERE state = '1' 
+						AND TYPE = 'BUY'),0) lowestAsk,
+			    IFNULL((
+			      SELECT MIN(price) 
+						FROM order_flow 
+						WHERE state = '1' 
+						AND TYPE = 'SELL'),0) highestBid
+				FROM deal_flow
+				WHERE UNIX_TIMESTAMP(deal_time) >= #{now} - 86400 
+			) temp
+        ]]>
+    </select>
+    <!-- 交易所 排行榜 结束 -->
+    
+    
+    
+
+	<select id=" optional" parameterType="BaseDTO" resultMap="rankingMap">
+		SELECT
+			tcc.is_home,
+			tcc.symbol,
+			tcc.is_new,
+			tcc.sn,
+			tmc.market,
+			tcc.icon,
+			tcc.type
+			tmc.table_name tableName,
+			(
+				SELECT
+					tc.dec_length
+				FROM
+					t_coin_config tc
+				WHERE
+					tc.symbol = tmc.market
+			) dec_length,
+			UNIX_TIMESTAMP(
+				DATE_FORMAT(NOW(), '%Y-%m-%d')
+			) inDate,
+			UNIX_TIMESTAMP(NOW()) nowTime,
+		FROM
+			t_coin_config tcc,
+		  	t_user_fav_coin tfc,
+			t_market_coin tmc
+		WHERE
+		tmc.symbol = tcc.symbol AND tcc.symbol = tfc.symbol
+		AND tcc.state = #{state} AND tmc.state = #{state} AND tfc.state = #{state} AND tfc.user_id = #{userId}
+		ORDER BY
+		tmc.sn DESC
+	</select>
+     
+	
+	<!-- 买卖盘 数据 开始 -->     
+    <resultMap id="orderMap" type="WsOrderDTO">
+        <collection property="list" select="queryOrderList" column="scope=scope,state=state,symbol=symbol,digit=digit,type=type"/>
+    </resultMap>
+    <select id="queryHandicap" resultMap="orderMap" parameterType="BaseDTO">
+        SELECT #{limit} scope,#{state} state,#{symbol} symbol,dem digit,#{type} `type`
+        FROM t_coin_decimal WHERE dem IN
+        <foreach collection="decimal" item="v" separator="," close=")" open="(">
+            #{v}
+        </foreach>
+    </select>
+    <!--买卖单记录-->
+    <select id="queryOrderList" resultType="java.util.Map" parameterType="java.util.Map">
+        <choose>
+            <when test="type == 'BUY'">
+                SELECT * FROM (
+                    SELECT CONVERT(FLOOR(CAST(price*POW(10, #{digit}) AS DECIMAL(20, #{digit})))/POW(10,#{digit}),DECIMAL(20,#{digit})) price,SUM(surplus_num*price) total,SUM(surplus_num) number,type type FROM order_flow 
+                    WHERE state = #{state} AND type = #{type}
+                    GROUP BY CONVERT(FLOOR(CAST(price*POW(10, #{digit}) AS DECIMAL(20, #{digit})))/POW(10,#{digit}),DECIMAL(20,#{digit}))
+                ) t ORDER BY price DESC LIMIT 0, #{scope}
+            </when>
+            <otherwise>
+                SELECT * FROM (
+                    SELECT * FROM (
+                        SELECT CONVERT(CEIL(CAST(price*POW(10, #{digit}) AS DECIMAL(20, #{digit})))/POW(10,#{digit}),DECIMAL(20,#{digit})) price,SUM(surplus_num*price) total,SUM(surplus_num) number,type type
+                        FROM order_flow WHERE state = #{state} AND type = #{type}
+                        GROUP BY CONVERT(CEIL(CAST(price*POW(10, #{digit}) AS DECIMAL(20, #{digit})))/POW(10,#{digit}),DECIMAL(20,#{digit})) ) t
+                ORDER BY price ASC LIMIT 0,  #{scope} ) m ORDER BY price DESC
+            </otherwise>
+        </choose>
+    </select>
+	<select id="queryDeals" resultType="DealVO" parameterType="BaseDTO">
+        SELECT DATE_FORMAT(deal_time, '%T') `time`, DATE_FORMAT(deal_time, '%Y-%m-%d %T') `date`,deal_price price,deal_num number,
+        CASE WHEN sell_id > buy_id THEN 'SELL' ELSE 'BUY' END type
+        FROM deal_flow ORDER BY id DESC LIMIT #{limit}
+    </select>
+    
+    <!-- 买卖盘 数据 结束 -->
+    
+    
+    <select id="queryUserDelegate" resultType="OrderVO" parameterType="PageDTO">
+        SELECT type,id,create_date,price,num `number`,
+            surplus_num surplus,total_price total,#{symbol} symbol
+            FROM order_flow WHERE user_id = #{userId} AND state = 1 
+            <if test="type != null">
+                AND type = #{type}
+            </if>
+            <if test="start != null">
+                AND create_date >= #{begin}
+            </if>
+            <if test="end != null">
+                AND #{end} >= create_date
+            </if>
+            ORDER BY create_date DESC
+    </select>
+    
+    
+    
+    
+    
+    
+</mapper>

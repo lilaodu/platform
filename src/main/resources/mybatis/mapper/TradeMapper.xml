@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.blockchain.platform.mapper.TradeMapper">
+
+    <!-- 更新用户钱包余额,解冻用户资金 
+    <update id="frozenUserWallet"  parameterType="OrderFlowEntity" >
+        UPDATE user_wallet SET
+        <if test="type == 'BUY'">
+            frozen_balance = frozen_balance + #{totalPrice}
+            ,version = version +1 WHERE banlance - frozen_balance >= #{totalPrice}
+        </if>
+        <if test="type == 'SELL'">
+            frozen_balance = frozen_balance + #{num}
+            ,version = version +1 WHERE banlance - frozen_balance >= #{num}
+        </if>
+          AND user_id =  #{userId}
+    </update> -->
+    <!-- 2、插入买单或者卖单数据 添加订单  -->
+    <update id="addOrder" useGeneratedKeys="true" keyProperty="id" parameterType="OrderFlowEntity" >
+        INSERT INTO order_flow
+          (user_id,num,price,total_price,state,surplus_num,surplus_price,create_date,fee,type)VALUES(#{userId},#{num},#{price},#{totalPrice},#{state},#{num},#{surplusPrice},#{createDate},#{fee},#{type})
+    </update>
+
+    <select id="queryUserDeputes" resultType="java.util.Map" parameterMap="atMap" statementType="CALLABLE">
+        CALL ACTIVE_FUNC_TOTAL(?, ?, ?, ?, ?,? , ?)
+    </select>
+    <parameterMap id="atMap" type="java.util.Map">
+        <parameter property="userId" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="limit" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="page" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="type" mode="IN" javaType="java.lang.String"/>
+        <parameter property="symbol" mode="IN" javaType="java.lang.String"/>
+        <parameter property="start" mode="IN" javaType="java.lang.String"/>
+        <parameter property="end" mode="IN" javaType="java.lang.String"/>
+    </parameterMap>
+    
+
+    <select id="queryDeputesPage" resultType="java.util.Map" parameterMap="apMap" statementType="CALLABLE">
+        CALL ACTIVE_FUNC_PAGE(?, ?, ?, ?,?, ? , ?)
+    </select>
+
+    <select id="queryUserDeals" resultType="java.util.Map" parameterMap="dtMap" statementType="CALLABLE">
+        CALL DEAL_FUNC_TOTAL(?, ?, ?,?, ?, ?, ?)
+    </select>
+
+    <select id="queryDealsPage" resultType="java.util.Map" parameterMap="dpMap" statementType="CALLABLE">
+        CALL DEAL_FUNC_PAGE(?, ?, ?,?, ?, ?, ?)
+    </select>
+
+    <!--  查询订单列表 卖单查买单列表，买单查卖单列表-->
+    <select id="queryOrderListByType" resultType="OrderFlowEntity" parameterType="OrderFlowEntity">
+        SELECT id,user_id,num,surplus_num,surplus_price,price,state,type,#{symbol}, symbol,fee,create_date
+          FROM order_flow WHERE state = 1 AND type = #{type}  
+          <!-- AND price = #{price}   -->
+        <if test="type == 'BUY'">
+        	 <!-- AND #{price} > price -->
+            ORDER BY price DESC,create_date ASC LIMIT #{limit}
+        </if>
+        <if test="type == 'SELL'">
+        	<!-- AND price > #{price} -->
+            ORDER BY price ASC,create_date ASC LIMIT #{limit}
+        </if>
+    </select>
+
+    <!-- 批量更新用户基础货币钱包余额,解冻用户资金 
+    <update id="mdfUserBaseWalletsForList" parameterType="java.util.Map">
+        <foreach collection="data" item="order" separator=";">
+            <if test="type == 'BUY'">
+                INSERT INTO user_wallet( balance,user_id)VALUES (#{order.sellBaseCoinNum},#{order.userId})
+                ON DUPLICATE KEY UPDATE balance = balance + #{order.sellBaseCoinNum} ,version = version +1
+            </if>
+            <if test="type == 'SELL'">
+                UPDATE user_wallet SET balance = balance - #{order.buyBaseCoinNum},frozen_balance =  frozen_balance - #{order.buyBaseCoinNum},version = version +1
+                WHERE user_id =  #{order.userId} AND balance >=#{order.buyBaseCoinNum} AND frozen_balance >= #{order.buyBaseCoinNum}
+            </if>
+        </foreach>
+    </update> -->
+
+    <!-- 批量更新用户钱包余额,解冻用户资金 
+    <update id="mdfUserWalletsForList" parameterType="java.util.Map">
+        <foreach collection="data" item="order" separator=";">
+            <if test="type == 'BUY'">
+                UPDATE user_wallet SET balance = balance - #{order.sellCoinNum},frozen_balance =  frozen_balance - #{order.sellCoinNum},version = version +1
+                WHERE user_id =  #{order.userId}
+            </if>
+            <if test="type == 'SELL'">
+                INSERT INTO user_wallet(balance,user_id)VALUES (#{order.buyCoinNum},#{order.userId})
+                ON DUPLICATE KEY UPDATE balance = balance + #{order.buyCoinNum} ,version = version +1
+             </if>
+        </foreach>
+    </update> -->
+
+    <!-- 更改订单状态 -->
+    <update id="mdfOrder" parameterType="OrderFlowEntity" >
+        UPDATE order_flow
+        SET version = version +1
+        <if test="surplusNum != null">
+            ,surplus_num = #{surplusNum},surplus_price = #{surplusPrice}
+        </if>
+        <if test="state != null">
+            ,state = #{state}
+        </if>
+        WHERE id = #{id} and  state=1
+    </update>
+    <!-- 更新用户代币钱包余额,解冻用户资金 
+    <update id="mdfUserWallet"  parameterType="OrderFlowEntity" >
+        <if test="type == 'BUY'">
+            INSERT INTO user_wallet(balance,user_id)VALUES (#{buyCoinNum},#{userId})
+            ON DUPLICATE KEY UPDATE balance = balance + #{buyCoinNum},version = version +1
+        </if>
+        <if test="type == 'SELL'">
+            UPDATE user_wallet SET balance = balance - #{sellCoinNum},frozen_balance = frozen_balance - #{sellCoinNum},version = version + 1
+            WHERE user_id =  #{userId} AND balance >= #{sellCoinNum} AND  frozen_balance >= #{sellCoinNum}
+        </if>
+    </update> -->
+    <!-- 更新用户钱包余额,解冻用户资金
+    <update id="mdfBaseUserWallet"  parameterType="OrderFlowEntity">
+          <if test="type == 'BUY'">
+              UPDATE user_wallet SET
+                balance = balance - #{buyBaseCoinNum}
+                ,frozen_balance =  frozen_balance - #{unfreezePrice}
+                ,version = version +1
+              WHERE user_id =  #{userId} AND balance >= #{buyBaseCoinNum} AND  frozen_balance>= #{unfreezePrice}
+          </if>
+            <if test="type == 'SELL'">
+                INSERT INTO user_wallet( balance,user_id)VALUES (#{sellBaseCoinNum},#{userId})
+                ON DUPLICATE KEY UPDATE balance = balance + #{sellBaseCoinNum} ,version = version +1
+            </if>
+    </update> -->
+	<!-- 批量更新订单信息 -->
+    <update id="mdfOrderList" parameterType="java.util.Map" >
+        <foreach collection="data" item="order" separator=";">
+            UPDATE order_flow 
+            SET surplus_num = #{order.surplusNum},surplus_price = #{order.surplusPrice},state = #{order.state},version = version + 1
+            WHERE id = #{order.id} AND type = #{order.type}
+        </foreach>
+    </update>
+    <!-- 批量插入成交流水记录 -->
+    <update id="addTradeFlows" parameterType="java.util.Map">
+        INSERT INTO deal_flow(sell_user_id,buy_user_id,deal_num,deal_price,total_price,sell_id,buy_id,buy_charge,buy_fee,sell_charge,sell_fee,type)VALUES
+        <foreach collection="data" item="flows" index="idx" separator=",">
+            (#{flows.sellUserId},#{flows.buyUserId},#{flows.num},#{flows.price},#{flows.totalPrice},#{flows.sellId},#{flows.buyId},#{flows.buyCharge},#{flows.buyFee},#{flows.sellCharge},#{flows.sellFee},#{flows.type})
+        </foreach>
+    </update>
+	<!--  查询订单列表 -->
+    <select id="queryOrder" resultType="OrderFlowEntity" parameterType="java.util.Map">
+        SELECT id,user_id,num,surplus_num,surplus_price,price,state,fee FROM
+        order_flow WHERE state = 1 AND id = #{id}
+    </select>
+    <!--  <update id="mdfUserWalletForCancel"  parameterType="OrderFlowEntity">
+        UPDATE user_wallet SET frozen_balance = frozen_balance - #{totalPrice},version = version +1
+        WHERE user_id = #{userId} AND frozen_balance >= #{totalPrice}
+    </update> -->
+    <!-- 更改订单状态 -->
+    <update id="cancelOrder" parameterType="OrderFlowEntity" >
+        UPDATE order_flow
+        SET version = version +1  ,state = #{state}
+        WHERE id = #{id} AND state = 1
+    </update>
+
+    <!-- 交易历史 -->
+    <select id="queryDeals" resultType="java.util.Map" parameterType="java.util.Map">
+        SELECT CASE WHEN buy_user_id = #{userId} THEN 'buy' ELSE 'sell' END direction,id,DATE_FORMAT(deal_time, '%Y-%m-%d %T') time,deal_price price,deal_num num,total_price total,#{symbol} symbol
+        FROM deal_flow WHERE (buy_user_id = #{userId} OR sell_user_id = #{userId})
+        <if test="type != null and type == 'BUY'">
+            AND buy_user_id = #{userId}
+        </if>
+        <if test="type != null and type == 'SELL'">
+            AND sell_user_id = #{userId}
+        </if>
+        <if test="start != null">
+            AND deal_time >= #{start}
+        </if>
+        <if test="end != null">
+            AND #{end} >= deal_time
+        </if>
+        ORDER BY deal_time DESC LIMIT #{f},#{t}
+    </select>
+    
+    <parameterMap id="dtMap" type="java.util.Map">
+        <parameter property="userId" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="limit" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="page" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="type" mode="IN" javaType="java.lang.String"/>
+        <parameter property="symbol" mode="IN" javaType="java.lang.String"/>
+        <parameter property="start" mode="IN" javaType="java.lang.String"/>
+        <parameter property="end" mode="IN" javaType="java.lang.String"/>
+    </parameterMap>
+
+    <parameterMap id="dpMap" type="java.util.Map">
+        <parameter property="f" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="t" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="userId" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="type" mode="IN" javaType="java.lang.String"/>
+        <parameter property="symbol" mode="IN" javaType="java.lang.String"/>
+        <parameter property="start" mode="IN" javaType="java.lang.String"/>
+        <parameter property="end" mode="IN" javaType="java.lang.String"/>
+    </parameterMap>
+    
+    
+
+    <parameterMap id="apMap" type="java.util.Map">
+        <parameter property="f" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="t" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="userId" mode="IN" javaType="java.lang.Integer"/>
+        <parameter property="type" mode="IN" javaType="java.lang.String"/>
+        <parameter property="symbol" mode="IN" javaType="java.lang.String"/>
+        <parameter property="start" mode="IN" javaType="java.lang.String"/>
+        <parameter property="end" mode="IN" javaType="java.lang.String"/>
+    </parameterMap>
+
+</mapper>

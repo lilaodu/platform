@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.OTCOrderMapper">
+
+    <select id="query" parameterType="PageDTO" resultType="OTCOrderVO">
+        SELECT DISTINCT t.* FROM (
+                SELECT
+                    too.id,
+                    too.type,
+                    too.symbol,
+                    too.num,
+                    too.order_number,
+                    too.amount,
+                    too.state,
+                    toa.price,
+                    toa.rate,
+                    too.update_time time,
+                    (SELECT COUNT(DISTINCT toc.id) FROM t_otc_chat toc
+                        WHERE toc.order_number = too.order_number AND toc.state = 2) chatNum
+                FROM t_otc_order too
+                JOIN t_otc_advert toa ON too.advert_id = toa.id
+                WHERE too.user_id = #{userId}
+                <if test='type == "Y"'>
+
+                    UNION
+
+                    SELECT
+                    too.id,
+                    CASE too.type
+                    WHEN 'BUY' THEN 'SELL'
+                    WHEN 'SELL' THEN 'BUY' END AS type,
+                    too.symbol,
+                    too.num,
+                    too.order_number,
+                    too.amount,
+                    too.state,
+                    oa.price,
+                    oa.rate,
+                    too.update_time  time,
+                    (SELECT COUNT(DISTINCT toc.id) FROM t_otc_chat toc
+                        WHERE toc.advert_number = oa.advert_number AND toc.state = 2) chatNum
+                    FROM t_otc_order too
+                    JOIN t_otc_advert oa ON too.advert_id = oa.id
+                    WHERE oa.user_id = #{userId}
+                </if>
+        ) t WHERE t.id > 0
+        <choose>
+            <when test='state != null and state == 1'>
+                AND t.state IN(1,3)
+            </when>
+            <when test='state != null and state == 2'>
+                <![CDATA[ AND t.state > 3  ]]>
+            </when>
+        </choose>
+        ORDER BY t.id DESC
+    </select>
+
+
+
+    <update id="update">
+        UPDATE t_otc_order SET
+        <if test='type != null and type != ""'>
+            type = #{type},
+        </if>
+        <if test='price != null'>
+            price = #{price},
+        </if>
+        <if test='state != null'>
+            state = #{state},
+        </if>
+        <if test='amount != null'>
+            amount = #{amouint},
+        </if>
+        <if test='advertId != null'>
+            advert_id = #{advertId},
+        </if>
+        <if test='symbol != null and symbol != ""'>
+            symbol = #{symbol},
+        </if>
+        <if test='payType != null and payType != ""'>
+            pay_type = #{payType},
+        </if>
+        <if test='payAccount != null and payAccount != ""'>
+            pay_account = #{payAccount},
+        </if>
+        version = version + 1,
+        update_time = NOW()
+        WHERE id = #{id} AND version = #{version}
+    </update>
+
+    <select id="findByCondition" parameterType="BaseDTO" resultType="OTCOrderEntity">
+        SELECT * FROM t_otc_order
+        WHERE id > 0
+        <if test='orderNumber != null and orderNumber != ""'>
+            AND order_number = #{orderNumber}
+        </if>
+        <if test='id != null'>
+            AND id = #{id}
+        </if>
+        <if test='userId != null'>
+            AND user_id = #{userId}
+        </if>
+    </select>
+
+    <select id="countRate" parameterType="BaseDTO" resultType="java.math.BigDecimal">
+        SELECT SUM(sell_rate) takeRate FROM t_otc_order
+        WHERE advert_id = #{id}
+        <if test='type != null and type =="ON"'>
+            state IN(1,3)
+        </if>
+        <if test='type != null and type == "COMPLETE'>
+            state IN(4,5)
+        </if>
+    </select>
+
+    <insert id="representation" parameterType="OTCRepresentationEntity">
+        INSERT INTO t_otc_representation(
+                                  user_id,
+                                  order_number,
+                                  type,
+                                  reason,
+                                  material,
+                                  create_time
+                              ) VALUES (
+                                  #{userId},
+                                  #{orderNumber},
+                                  #{type},
+                                  #{reason},
+                                  #{material},
+                                  NOW()
+                              )
+
+    </insert>
+
+    <select id="list" parameterType="BaseDTO" resultType="OTCOrderEntity">
+        SELECT * FROM t_otc_order
+        WHERE id > 0
+        <if test='id != null'>
+            AND advert_id = #{id}
+        </if>
+        <if test='state != null'>
+            <![CDATA[ AND state  <  #{state} AND state != 2 ]]>
+        </if>
+        <if test='userId != null'>
+            AND user_id = #{userId}
+        </if>
+    </select>
+
+    <select id="details" parameterType="BaseDTO" resultType="OTCOrderVO">
+        SELECT  too.*,
+            (SELECT advert_number FROM t_otc_advert toa WHERE too.advert_id = toa.id) advert_number,
+            (SELECT IFNULL(tu.mobile,tu.email) FROM t_user tu WHERE tu.id = too.user_id ) username,
+
+            (SELECT IFNULL(m.mobile,m.email) FROM t_user m
+              INNER JOIN t_otc_advert toa1  ON toa1.user_id = m.id WHERE toa1.id = too.advert_id) merchant,
+            (SELECT tom1.nick_name FROM t_otc_merchant tom1  WHERE tom1.user_id = too.user_id AND tom1.state = 2) user_nick,
+            (SELECT tom2.nick_name FROM t_otc_merchant tom2
+              INNER JOIN t_otc_advert toa ON  toa.user_id = tom2.user_id WHERE toa.id = too.advert_id AND tom2.state = 2 AND toa.state = 1) merchant_nick,
+            (SELECT CONCAT(tuk1.first_name,tuk1.last_name) FROM t_user_kyc tuk1 WHERE tuk1.user_id = too.user_id AND tuk1.pic_hold != '') user_real,
+            (SELECT CONCAT(tuk2.first_name,tuk2.last_name) FROM t_user_kyc tuk2
+              INNER JOIN t_otc_advert toa ON toa.user_id = tuk2.user_id WHERE toa.id = too.advert_id AND tuk2.pic_hold != '') merchant_real,
+            (SELECT COUNT(DISTINCT toc.id) FROM t_otc_chat toc
+             WHERE toc.order_number = too.order_number AND toc.state = 2) chatNum,
+            (SELECT head_image FROM t_user us WHERE us.id = too.user_id) head_image
+        FROM t_otc_order too
+        WHERE too.id > 0
+        <if test='id != null'>
+            AND too.id = #{id}
+        </if>
+        <if test='state != null'>
+            AND too.state = #{state}
+        </if>
+        <if test='orderNumber != null and orderNumber != ""'>
+            AND too.order_number = #{orderNumber}
+        </if>
+    </select>
+
+    <insert id="addFlow" parameterType="OTCOrderFlowEntity">
+        INSERT INTO t_otc_order_flow(
+                                user_id,
+                                order_id,
+                                symbol,
+                                merchant_id,
+                                user_wallet_before,
+                                user_wallet_after,
+                                merchant_wallet_before,
+                                merchant_wallet_after,
+                                create_time
+                            ) VALUES (
+                                #{userId},
+                                #{orderId},
+                                #{symbol},
+                                #{merchantId},
+                                #{userWalletBefore},
+                                #{userWalletAfter},
+                                #{merchantWalletBefore},
+                                #{merchantWalletAfter},
+                                NOW()
+                            )
+    </insert>
+
+    <select id="queryUncompleted" parameterType="BaseDTO" resultType="OTCOrderEntity">
+        <![CDATA[ SELECT * FROM t_otc_order WHERE state IN(1) AND create_time < #{time} ]]>
+    </select>
+
+    <update id="updateCancel" parameterType="OTCOrderEntity">
+        UPDATE t_otc_order SET state = 2,version = version + 1,
+        update_time = NOW()
+        WHERE state IN(1)  AND id = #{id}
+    </update>
+</mapper>

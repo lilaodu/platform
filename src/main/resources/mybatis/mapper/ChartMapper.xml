@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 图标数据 -->
+<mapper namespace="com.blockchain.platform.mapper.ChartMapper">
+
+    <!-- k 线 数据 -->
+    <parameterMap id="klineMap" type="java.util.Map">
+        <parameter property="symbol" mode="IN" javaType="java.lang.String"/>
+        <parameter property="from" mode="IN" javaType="java.lang.Long"/>
+        <parameter property="to" mode="IN" javaType="java.lang.Long"/>
+        <parameter property="resolution" mode="IN" javaType="java.lang.Long"/>
+    </parameterMap>
+
+    <select id="tvKline" resultType="KlineVO" parameterMap="klineMap" statementType="CALLABLE">
+        CALL TV_DATA_BY_SYMBOL(?, ?, ?, ?)
+    </select>
+
+    <!-- k线历史数据 -->
+    <select id="history" resultType="KlineVO" parameterType="KlineDTO">
+        <![CDATA[
+            SELECT t.* FROM t_ex_kline_data t WHERE
+                t.resolution = #{resolution} AND t.t >= #{from} AND t.t <= #{to}
+                AND t.symbol = #{symbol} ORDER BY t.t ASC
+        ]]>
+    </select>
+</mapper>

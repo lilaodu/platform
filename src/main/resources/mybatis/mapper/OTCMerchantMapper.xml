@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.OTCMerchantMapper">
+
+    <select id="findByCondition" parameterType="BaseDTO" resultType="OTCMerchantEntity">
+        SELECT * FROM t_otc_merchant WHERE user_id = #{userId}
+        <if test='state != null'>
+            AND  state = #{state}
+        </if>
+    </select>
+
+    <insert id="add" parameterType="OTCMerchantEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_otc_merchant(
+                          nick_name,
+                          reason,
+                          user_id,
+                          num,
+                          praise,
+                          trusted_num,
+                          merchant_time,
+                          create_time,
+                          update_time
+                  ) VALUES (
+                          #{nickName},
+                          #{reason},
+                          #{userId},
+                          #{num},
+                          #{praise},
+                          #{trustedNum},
+                          NOW(),
+                          NOW(),
+                          NOW()
+                  )
+    </insert>
+
+    <update id="update" parameterType="OTCMerchantEntity">
+        UPDATE t_otc_merchant SET
+        <if test='nickName != null and nickName != ""'>
+            nick_name = #{nickName},
+        </if>
+        <if test='cause != null and cause != ""'>
+            cause = #{OTCMerchantEntity},
+        </if>
+        <if test='num != null'>
+            num = #{num},
+        </if>
+        <if test='praise != null'>
+            praise = #{praise},
+        </if>
+        <if test='trustedNum != null'>
+            trusted_num = #{trustedNum},
+        </if>
+        <if test='merchantTime != null'>
+            merchant_time = #{merchantTime},
+        </if>
+        <if test='firstTradeTime != null'>
+            first_trade_time = #{firstTradeTime},
+        </if>
+        <if test='state != null'>
+            state = #{state},
+        </if>
+        version = version + 1,
+        update_time = NOW()
+        WHERE id = #{id} AND version = #{version}
+    </update>
+</mapper>

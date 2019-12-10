@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.KycMapper">
+
+    <!-- 用户kyc详情 -->
+    <select id="findByCondition" parameterType="BaseDTO" resultType="UserKycEntity">
+        SELECT CASE
+          WHEN state = 6 THEN 6
+          WHEN state = 5 THEN 5
+          WHEN IFNULL(pic_back, '''') != '''' AND IFNULL(pic_hold, '''') != '''' AND IFNULL(pic_face, '''') != '''' AND
+              state = 4 THEN 4
+          WHEN IFNULL(first_name, '''') != '''' AND IFNULL(last_name, '''') != '''' AND IFNULL(id_type, '''') != '''' AND
+              IFNULL(id_no, '''') != '''' AND IFNULL(country, '''') != ''''
+              OR (IFNULL(pic_back, '''') = '''' OR IFNULL(pic_face, '''') = '''' OR IFNULL(pic_hold, '''') = '''' OR
+                  state = 3) THEN 3
+          ELSE 0 END step,tuk.*
+        FROM t_user_kyc tuk
+        WHERE tuk.user_id = #{userId} AND tuk.state != #{state}
+    </select>
+
+    <!-- C1认证 -->
+    <insert id="add" parameterType="UserKycEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_user_kyc(
+                        first_name,
+                        last_name,
+                        sex,
+                        country,
+                        address,
+                        id_type,
+                        id_no,
+                        user_id,
+                        city,
+                        state,
+                        postal_code,
+                        birthday,
+                        pic_hold,
+                        pic_face,
+                        pic_back,
+                        create_time
+                  ) VALUES(
+                        #{firstName},
+                        #{lastName},
+                        #{sex},
+                        #{country},
+                        #{address},
+                        #{idType},
+                        #{idNo},
+                        #{userId}
+                        #{city},
+                        #{state},
+                        #{postalCode},
+                        #{birthday},
+                        #{picHold},
+                        #{picFace},
+                        #{picBack},
+                        NOW()
+                  )
+    </insert>
+
+    <!-- C2认证 -->
+    <update id="update" parameterType="UserKycEntity" >
+        UPDATE t_user_kyc SET
+        <if test='picHold != null and picHold != ""'>
+            pic_hold = #{picHold},
+        </if>
+        <if test='picFace !=null and picFace != ""'>
+            pic_face = #{picFace},
+        </if>
+        <if test='picBack !=null and picBack != ""'>
+            pic_back = #{picBack},
+        </if>
+        <if test='state != null'>
+            state = #{state},
+        </if>
+        version = version + 1,
+        update_time = NOW()
+        WHERE user_id = #{userId}
+    </update>
+</mapper>

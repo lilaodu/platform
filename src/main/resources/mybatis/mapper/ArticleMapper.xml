@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.ArticleMapper">
+
+    <select id="findByCondition" parameterType="BaseDTO" resultType="ArticleEntity">
+        SELECT * FROM  t_article where id = #{id}
+        <if test='state != null'>
+            AND state = #{state}
+        </if>
+    </select>
+
+</mapper>

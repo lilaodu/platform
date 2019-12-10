@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.ChainMapper">
+
+    <select id="findWalletAddress" parameterType="BaseDTO" resultType="WalletAddressEntity">
+        SELECT twal.* FROM t_wallet_address_list twal
+        WHERE id > 0
+        AND EXISTS( SELECT 1 FROM t_wallet_config twc WHERE twal.coin_type = twc.coin_type AND twc.symbol = #{symbol}
+        AND twc.state = 1)
+        <if test='userId != null'>
+            AND twal.user_id = #{userId} AND twal.state = 2
+        </if>
+        LIMIT 1
+    </select>
+
+    <update id="modifyWalletAddress">
+        UPDATE t_wallet_address_list SET
+        <if test='userId != null'>
+            user_id = #{userId},
+        </if>
+        <if test='state != null'>
+            state = #{state},
+        </if>
+        version = version + 1
+        WHERE id = #{id} AND version = #{version}
+    </update>
+
+    <select id="deposit" parameterType="PageDTO" resultType="DepositVO">
+        SELECT
+        amount,coin_code,status,to_address,timestamp time,confirm_num,hash hash
+        FROM t_chain_deposit WHERE user_id = #{userId}
+        <if test='state != null and state == 1'>
+            AND status IN('NOT_RECORD','NOT_CONFIRM')
+        </if>
+        <if test='state != null and state == 2'>
+            AND status = 'CONFIRM'
+        </if>
+        ORDER BY timestamp DESC
+    </select>
+
+    <select id="withdraw" parameterType="PageDTO" resultType="WithdrawVO">
+        SELECT
+        coin_code,address,number,status,fee,fee_coin_code,time,id,real_fee,hash
+        FROM t_chain_withdraw WHERE user_id = #{userId}
+        <if test='state != null and state == 1'>
+            AND status IN('NOT_RECORD','NOT_CONFIRM')
+        </if>
+        <if test='state != null and state == 2'>
+            AND status = 'CONFIRM'
+        </if>
+        order by time desc
+    </select>
+
+    <select id="findWithdraw" parameterType="BaseDTO" resultType="ChainWithdrawEntity">
+        SELECT *
+        FROM t_chain_withdraw
+        WHERE hash = #{hash}
+    </select>
+
+    <insert id="addWithdrawFlow" parameterType="ChainWithdrawEntity">
+        INSERT INTO t_chain_withdraw (id,
+                                      hash,
+                                      coin_code,
+                                      module,
+                                      address,
+                                      number,
+                                      status,
+                                      fee,
+                                      fee_coin_code,
+                                      error,
+                                      user_id,
+                                      real_fee,
+                                      time)
+        VALUES (#{id},
+                #{hash},
+                #{coinCode},
+                #{module},
+                #{address},
+                #{number},
+                #{status},
+                #{fee},
+                #{feeCoinCode},
+                #{error},
+                #{userId},
+                #{realFee},
+                #{time})
+    </insert>
+
+    <update id="modifyWithdraw" parameterType="ChainWithdrawEntity">
+        UPDATE t_chain_withdraw SET
+        <if test='userId != null'>
+            user_id = #{userId},
+        </if>
+        <if test='status != null and status != ""'>
+            status = #{status},
+        </if>
+        <if test='feeCoinCode != null and feeCoinCode != ""'>
+            fee_coin_code = #{feeCoinCode},
+        </if>
+        <if test='time != null'>
+            time = #{time},
+        </if>
+        <if test='realFee != null'>
+            real_fee = #{realFee},
+        </if>
+        WHERE hash = #{hash}
+    </update>
+</mapper>

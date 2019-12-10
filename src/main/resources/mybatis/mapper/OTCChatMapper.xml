@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.OTCChatMapper">
+
+    <select id="query" parameterType="BaseDTO" resultType="OTCChatVO">
+        SELECT id,type,state,content,create_time AS `time`,
+          (SELECT head_image FROM t_user tu WHERE tu.id = toa.user_id) head_image,
+          CASE
+          WHEN toa.user_id = #{userId} THEN 'Y' ELSE 'N' END own
+        FROM t_otc_chat toa
+        WHERE toa.id > 0
+        <if test='advertNumber != null and advertNumber != ""'>
+            AND toa.advert_number = #{advertNumber}
+        </if>
+        <if test='orderNumber != null and orderNumber != ""'>
+            AND toa.order_number = #{orderNumber}
+        </if>
+        ORDER BY toa.id
+    </select>
+
+    <insert id="add" parameterType="OTCChatEntity">
+        INSERT INTO t_otc_chat(
+                              user_id,
+                              advert_number,
+                              order_number,
+                              type,
+                              state,
+                              content,
+                              create_time
+                          ) VALUES (
+                               #{userId},
+                               #{advertNumber},
+                               #{orderNumber},
+                               #{type},
+                               #{state},
+                               #{content},
+                               NOW()
+                          )
+    </insert>
+
+    <!-- 新增模板消息 -->
+    <insert id="addTemplate" parameterType="OTCChatTemplateEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_otc_chat_template(
+                              user_id,
+                              content,
+                              create_time
+                          ) VALUES (
+                               #{userId},
+                               #{content},
+                               NOW()
+    </insert>
+
+    <update id="updateTemplate" parameterType="OTCChatTemplateEntity">
+        UPDATE t_otc_chat_template SET state = #{state}
+        WHERE id = #{id} AND user_id = #{userId}
+    </update>
+
+    <!-- 模板消息列表 -->
+    <select id="queryTemplate" parameterType="PageDTO" resultType="OTCChatTemplateVO">
+        SELECT id,content FROM t_otc_chat_template WHERE user_id = -1
+        <if test='userId != null'>
+            OR user_id = #{userId}
+        </if>
+        <if test="state != null">
+            AND state = #{state}
+        </if>
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 未读消息 -->
+    <select id="countUnRead" parameterType="BaseDTO" resultType="java.lang.Integer">
+        SELECT COUNT(id) num FROM (
+            SELECT toc.id FROM t_otc_chat toc, t_otc_order too
+              WHERE toc.order_number = too.order_number
+            AND too.user_id = #{userId} AND toc.state = 2
+            <if test="state = 1">
+                UNION
+                SELECT toc.id FROM t_otc_chat toc, t_otc_advert toa
+                WHERE toc.advert_number = toa.advert_number
+                AND toa.user_id = #{userId} AND toc.state = 1
+            </if>
+        ) tt
+    </select>
+
+    <update id="modify" parameterType="BaseDTO">
+        UPDATE t_otc_chat SET state = #{state} WHERE order_number = #{orderNumber} AND user_id <![CDATA[ <> ]]> #{userId}
+    </update>
+</mapper>

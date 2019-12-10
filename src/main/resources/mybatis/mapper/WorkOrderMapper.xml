@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.WorkOrderMapper">
+
+    <resultMap id="work" type="WorkOrderVO">
+        <collection property="details" select="detail" column="id=id,userId=userId" ofType="WorkOrderDetailsVO"/>
+    </resultMap>
+
+    <select id="query" parameterType="PageDTO" resultMap="work">
+        SELECT
+          id,question,reason,material,state,create_time time,user_id userId
+        FROM t_work_order
+        WHERE id > 0
+        <if test='userId != null'>
+            AND user_id = #{userId}
+        </if>
+        <if test='state != null and state != 0'>
+            AND state = #{state}
+        </if>
+        ORDER BY state,id DESC
+    </select>
+
+    <select id="detail" parameterType="java.util.Map" resultType="WorkOrderDetailsVO">
+        SELECT content,IF(user_id = #{userId},'Y','N') own FROM t_work_order_details WHERE work_id = #{id} ORDER BY id
+    </select>
+
+    <insert id="modify" parameterType="WorkOrderEntity">
+        INSERT INTO t_work_order(
+                          question,
+                          reason,
+                          material,
+                          user_id,
+                          create_time,
+                          update_time
+                      ) VALUES(
+                          #{question},
+                          #{reason},
+                          #{material},
+                          #{userId},
+                          NOW(),
+                          NOW()
+                      )
+    </insert>
+
+    <insert id="reply" parameterType="WorkOrderDetailsEntity">
+        INSERT INTO t_work_order_details(
+                          work_id,
+                          content,
+                          user_id,
+                          create_time
+                      ) VALUES (
+                          #{workId},
+                          #{content},
+                          #{userId},
+                          NOW()
+                      )
+    </insert>
+
+    <select id="findByCondition" parameterType="BaseDTO" resultType="WorkOrderEntity">
+        SELECT * FROM t_work_order WHERE id > 0
+        <if test='id != null'>
+            AND id = #{id}
+        </if>
+        <if test='userId != null'>
+            AND user_id = #{userId}
+        </if>
+        <if test='state != null'>
+            AND state IN(1,2)
+        </if>
+    </select>
+</mapper>

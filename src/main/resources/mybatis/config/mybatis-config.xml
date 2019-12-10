@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd" >
+<configuration>
+    <settings>
+        <!--使用JDBC的getGeneratedKeys获取数据库自增主键-->
+        <setting name="useGeneratedKeys" value="true"/>
+        <!--开启驼峰转换-->
+        <setting name="mapUnderscoreToCamelCase" value="true" />
+    </settings>
+
+    <plugins>
+        <!-- 数据切片 -->
+        <plugin interceptor="com.blockchain.platform.datasource.ShardingPlugins"/>
+         <!--分页插件 -->
+        <plugin interceptor="com.github.pagehelper.PageHelper">
+            <property name="dialect" value="mysql"/>
+            <property name="offsetAsPageNum" value="false"/>
+            <property name="rowBoundsWithCount" value="false"/>
+            <property name="pageSizeZero" value="true"/>
+            <property name="reasonable" value="false"/>
+            <property name="supportMethodsArguments" value="false"/>
+            <property name="returnPageInfo" value="none"/>
+        </plugin>
+    </plugins>
+</configuration>

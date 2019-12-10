@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.UserGradeLogMapper">
+
+        <select id="findByCondition" parameterType="BaseDTO" resultType="UserGradeLogEntity">
+            SELECT * FROM t_user_grade_log WHERE user_id = #{userId}  ORDER BY id DESC LIMIT 1
+        </select>
+
+        <insert id="add" parameterType="UserGradeLogEntity">
+            INSERT INTO t_user_grade_log(
+                                user_id,
+                                grade_before,
+                                grade_after,
+                                create_time
+                            ) VALUES (
+                                #{userId},
+                                #{gradeBefore},
+                                #{gradeAfter},
+                                NOW()
+                            )
+        </insert>
+</mapper>

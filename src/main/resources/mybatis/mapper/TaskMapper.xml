@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.blockchain.platform.mapper.TaskMapper">
+
+    <!-- 昨日秒合约交易用户 -->
+    <select id="findUserByCondition" parameterType="TaskDTO" resultType="UserEntity">
+       SELECT t.* FROM t_user t
+          WHERE EXISTS(
+            SELECT 1 FROM t_seconds_contract_order_flow tscof
+              WHERE t.id = tscof.user_id AND tscof.state = 4
+                AND DATE_FORMAT( tscof.settlement_time,'%Y%m%d') = #{time}
+          )
+    </select>
+
+    <!-- 最后一次升级记录 -->
+    <select id="findLastUpgrade" parameterType="BaseDTO" resultType="UserUpgradeFlowEntity">
+        SELECT * FROM t_user_upgrade_flow WHERE user_id = #{userId} ORDER BY id DESC LIMIT 1
+    </select>
+
+    <!-- 团队交易量 90 天 -->
+    <select id="teamTradeVolume" parameterType="TaskDTO" resultType="java.math.BigDecimal">
+        <![CDATA[
+            SELECT SUM(tscof.price) amount
+              FROM t_seconds_contract_order_flow tscof ,t_user t
+              WHERE t.id = tscof.user_id AND DATE_FORMAT( tscof.settlement_time,'%Y%m%d%H%m%s') > #{time}
+                AND DATE_FORMAT( tscof.settlement_time,'%Y%m%d%H%m%s') <= #{end}
+                AND t.authority LIKE CONCAT('%', #{authority})
+        ]]>
+    </select>
+
+    <insert id="addLockProfitEntity" parameterType="UserLockProfitEntity" keyProperty="id" useGeneratedKeys="true">
+        INSERT INTO t_user_lock_profit(symbol, user_id, product_id, product_user_id, amount)
+          VALUE (#{symbol}, #{userId}, #{productId}, #{productUserId},#{amount})
+    </insert>
+
+    <select id="findDirectHold" parameterType="TaskDTO" resultType="UserWalletEntity">
+      SELECT tuw.* FROM t_user t JOIN t_user_wallet tuw ON t.id = tuw.user_id WHERE tuw.symbol IN (
+          <foreach collection="symbol" item="item" separator=",">
+              #{item}
+          </foreach>
+        ) AND t.parent_id = #{userId} OR t.id = #{userId}
+    </select>
+
+    <select id="findUnLockProfitData" parameterType="TaskDTO" resultType="UnLockProfitVO">
+        <![CDATA[
+            SELECT SUM(tuwf.unlock_num) unLockTotal,tuwf.user_id userId,
+                t.lock_lv lockLv,t.authority,t.parent_id parentId,GROUP_CONCAT(DISTINCT tuwf.user_lock_warehouse_id) productId
+                FROM t_unlock_warehouse_flow tuwf ,t_user t
+                WHERE t.id = tuwf.user_id AND DATE_FORMAT(tuwf.create_time ,'%Y%m%d') = #{time}
+                AND tuwf.unlock_num > 0
+                GROUP BY tuwf.user_id
+        ]]>
+    </select>
+
+
+    <select id="findContractProfitData" parameterType="TaskDTO" resultType="ContractProfitVO">
+        <![CDATA[
+              SELECT tscof.user_id userId,SUM(tscof.price) amount,t.rank,t.parent_id parentId,tscof.pay_coin symbol
+                    FROM t_seconds_contract_order_flow tscof, t_user t
+                      WHERE t.id = tscof.user_id AND DATE_FORMAT(tscof.settlement_time, '%Y%m%d') = #{time}
+                      GROUP BY tscof.user_id,t.rank,t.parent_id,tscof.pay_coin
+        ]]>
+    </select>
+
+
+    <insert id="addTradeProfitEntity" parameterType="UserTradeProfitEntity">
+        INSERT INTO t_user_trade_profit(user_id, amount, product_user_id, type, symbol)
+          VALUES(#{userId}, #{amount}, #{productUserId}, #{type}, #{symbol})
+    </insert>
+    
+    <insert id="addUserUpgradeFlow" parameterType="UserUpgradeFlowEntity">
+        INSERT INTO t_user_upgrade_flow(user_id, rank_level, histroy_level, type, create_time,state,admin_user_id)
+          VALUES(#{userId}, #{rankLevel}, #{historyLevel}, #{type}, #{createTime},#{state},#{adminUserId})
+    </insert>
+    
+    
+    
+</mapper>
