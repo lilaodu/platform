@@ -1,0 +1,116 @@
+# 应用服务端口
+server:
+  port: 8880
+  servlet:
+    context-path: /platform
+
+# 开发环境 数据库
+spring:
+  # 开发环境redis 配置
+  redis:
+    #host: 47.75.151.87
+    #host: 103.224.250.92
+    host: 127.0.0.1
+    port: 6379
+      #    password:
+    password: Ai123456
+    #password: btbit6379
+    timeout: 3600
+    jedis:
+      pool:
+        max-active: 420
+        max-idle: 6
+        max-wait: -1
+        min-idle: 0
+  # 开发环境 datasource 配置
+  #platform
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    #url: jdbc:mysql://35.220.139.136:3306/exchange?useSSL=false&useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&zeroDateTimeBehavior=convertToNull&useTimezone=true&serverTimezone=Asia/Shanghai
+    #username: btbit443
+    #password: 9527$#2%%$22!
+    #url: jdbc:mysql://103.224.250.92:3306/exchange?useSSL=false&useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&zeroDateTimeBehavior=convertToNull&useTimezone=true&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/exchange?useSSL=false&useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&zeroDateTimeBehavior=convertToNull&useTimezone=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: "#S>i1ZVHpww1"
+    max-active: 400 #最大连接数
+    min-idle: 5 #最小连接数
+    initial-size:  5 #初始化连接数
+    max-wait: 60000
+    validation-query: select 1
+
+
+# 交易所配置 测试
+platform:
+  slb:
+    ip-config: http://127.0.0.1
+    port: 8880
+    context-path: /platform
+    action: /trade/notify
+    scaction: /trade/contractNotify
+  upload:
+    domain: http://127.0.0.1:8092/image/imgUpload
+    action: http://127.0.0.1:8092/image/imgUpload
+  sms:
+    sign: Tueex # 标题
+    domain: https://api.mysubmail.com/message/send
+    app-id: 40642
+    app-key: 4213f26de7a5c8d34354ba2841cc3bbc
+
+    # 注册短信模板
+    register-content: 【sign】验证码：code，5分钟内有效。
+    register-param:
+      code: 0
+    # 资金密码短信模板
+    cipher-content: 【sign】验证码：code，5分钟内有效。
+    cipher-param:
+      code: 0
+    # 场外出售短信模板
+    address-content: 【sign】验证码：code，5分钟内有效。
+    address-param:
+      code: 0
+    extract-content: 【sign】验证码：code，5分钟内有效。
+    extract-param:
+      code: 0
+    # 绑定邮箱，电话短信模板
+    bind-content: 【sign】验证码：code，5分钟内有效。
+    bind-param:
+      code: 0
+    # 提币手机，邮箱验证码
+    withdraw-content: 【sign】验证码：code，5分钟内有效。
+    change-cipher: 您的资金密码已经重置为登录密码。
+    withdraw-param:
+      code: 0
+
+  email:
+    url: https://api.mysubmail.com/mail/send
+    app-id: 14812
+    app-key: 678d8ccdbed6ca70f5c5dd2c7dd3ef64
+    from: Tueex@service.tueex.io
+
+  rate:
+    kucoin-api: https://kitchen-v2.kucoin.com/currency/rates?base=
+    coinbase-api: https://api.coinbase.com/v2/exchange-rates?currency=
+    configure:
+      CNY: ¥
+      USD: $
+    market:
+      USD: USDT
+      BTC: BTC
+
+  ticker:
+    huobi-ticker-api: https://api.huobi.pro/market/detail/merged?symbol=
+
+    huobi-history-api: https://api.huobi.pro/market/detail?symbol=
+
+
+logging:
+  level:
+    ROOT: INFO
+    org.springframework.web: INFO
+    com.epiboly.exchange.mapper: INFO
+
+influx:
+  database: klines
+  host: http://localhost:8086

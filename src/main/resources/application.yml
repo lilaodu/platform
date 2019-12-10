@@ -1,0 +1,32 @@
+# 环境切换
+spring:
+  profiles:
+    active: pro
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
+
+  #jpa 映射
+  jpa:
+    hibernate:
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+      ddl-auto: none
+    database: mysql
+  # 消息信息
+  messages:
+    basename: static/i18n/messages
+    encoding: UTF-8
+
+
+# plus 配置
+mybatis-plus:
+  mapper-locations: classpath:/mybatis/mapper/*.xml
+  #实体扫描，多个package用逗号或者分号分隔
+  type-aliases-package: com.blockchain.platform.pojo.entity;com.blockchain.platform.pojo.dto;com.blockchain.platform.pojo.vo
+  #配置文件路径
+  config-location: classpath:/mybatis/config/mybatis-config.xml
+  global-config:
+    db-config:
+      id-type: AUTO
